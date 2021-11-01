@@ -4,6 +4,7 @@ from discord.utils import get
 from discord import FFmpegPCMAudio
 from ServerQueue import ServerQueue
 from song_grabber import get_song
+import typing
 
 client = commands.Bot(command_prefix="-")
 server_queues = {}
@@ -44,7 +45,7 @@ def play_song(sq, channel):
 def on_song_end(sq, channel):
     if sq.current_queue_number is None:
         return
-    if sq.current_queue_number < len(sq.queue) - 1:
+    elif sq.current_queue_number < len(sq.queue) - 1:
         sq.current_queue_number += 1
     elif not sq.looping and sq.current_queue_number == len(sq.queue) - 1:
         sq.is_playing = False
@@ -81,7 +82,7 @@ async def play(ctx: commands.Context, *, query: str):
         play_song(sq, channel)
 
 
-@client.command(name="disconnect", aliases=["dc"])
+@client.command(name="disconnect", aliases=["dc", "die"])
 async def disconnect(ctx: commands.Context):
     await ctx.voice_client.disconnect()
 
@@ -95,6 +96,21 @@ async def queue(ctx: commands.Context):
         message += f"{prefix} {i+1}) {sq.queue[i].queue_string}\n"
     message += "```"
     await ctx.send(message)
+
+
+@client.command(name="skip", aliases=["next", "nextsong", ""])
+async def skip(ctx: commands, amount: typing.Optional[int] = 1):
+    if ctx.message.author.voice.channel == ctx.voice_client.channel:
+        vc = ctx.author.voice.channel
+        ctx.voice_client.stop()
+        sq = server_queues[ctx.guild.id]
+        sq.active_text_channel = ctx.channel
+        curr_queue_num = sq.current_queue_number if sq.current_queue_number is not None else 0
+        if curr_queue_num + amount >= len(sq.queue):
+            await ctx.send("There's no song to skip to there")
+        sq.current_queue_number += amount
+        play_song(sq, channel=sq.channel)
+        sq.current_queue_number -= 1
 
 
 @client.command(name="nowplaying", aliases=["np"])
