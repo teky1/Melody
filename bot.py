@@ -19,6 +19,20 @@ FFMPEG_OPTIONS = {
 async def on_ready():
     print("Ready.")
 
+# is in vc check
+def is_in_our_vc():
+    async def predicate(ctx: commands.Context):
+        if ctx.message.author.voice is None:
+            await ctx.send("You need to be in a VC to use this command")
+            return False
+        if ctx.voice_client is None:
+            return True
+        if ctx.message.author.voice.channel == ctx.voice_client.channel:
+            return True
+        else:
+            await ctx.send("You need to be in the bot's VC to use this command.")
+            return False
+    return commands.check(predicate)
 
 @client.event
 async def on_voice_state_update(member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
@@ -55,7 +69,7 @@ def on_song_end(sq, channel):
 
     play_song(sq, channel)
 
-
+@is_in_our_vc()
 @client.command(name="play", aliases=["p"])
 async def play(ctx: commands.Context, *, query: str):
     if ctx.guild.id not in server_queues:
@@ -81,9 +95,14 @@ async def play(ctx: commands.Context, *, query: str):
         sq.current_queue_number = current_queue_length
         play_song(sq, channel)
 
-
-@client.command(name="disconnect", aliases=["dc", "die"])
+@is_in_our_vc()
+@client.command(name="disconnect", aliases=["dc", "die", "leave"])
 async def disconnect(ctx: commands.Context):
+    try:
+        sq = server_queues[ctx.guild.id]
+        sq.active_text_channel = ctx.channel
+    except KeyError:
+        pass
     await ctx.voice_client.disconnect()
 
 
@@ -98,19 +117,62 @@ async def queue(ctx: commands.Context):
     await ctx.send(message)
 
 
-@client.command(name="skip", aliases=["next", "nextsong", ""])
-async def skip(ctx: commands, amount: typing.Optional[int] = 1):
-    if ctx.message.author.voice.channel == ctx.voice_client.channel:
-        vc = ctx.author.voice.channel
-        ctx.voice_client.stop()
-        sq = server_queues[ctx.guild.id]
-        sq.active_text_channel = ctx.channel
-        curr_queue_num = sq.current_queue_number if sq.current_queue_number is not None else 0
-        if curr_queue_num + amount >= len(sq.queue):
-            await ctx.send("There's no song to skip to there")
-        sq.current_queue_number += amount
-        play_song(sq, channel=sq.channel)
-        sq.current_queue_number -= 1
+@is_in_our_vc()
+@client.command(name="skip", aliases=["next", "nextsong"])
+async def skip(ctx: commands.Context, amount: typing.Optional[int] = 1):
+    vc = ctx.author.voice.channel
+    sq = server_queues[ctx.guild.id]
+    sq.active_text_channel = ctx.channel
+    curr_queue_num = sq.current_queue_number if sq.current_queue_number is not None else 0
+    if curr_queue_num + amount >= len(sq.queue) or curr_queue_num + amount < 0:
+        await ctx.send("There's no song to skip to there.")
+        return
+    playing_song = sq.queue[curr_queue_num + amount]
+    await ctx.send(f"Now Playing: `{playing_song.title}` ({playing_song.length_formatted})")
+    ctx.voice_client.stop()
+    sq.current_queue_number = curr_queue_num + amount
+    play_song(sq, channel=sq.channel)
+    sq.current_queue_number -= 1
+
+
+@is_in_our_vc()
+@client.command(name="jump", aliases=["jumpto", "skipto"])
+async def jump(ctx: commands.Context, queue_num: int):
+    vc = ctx.author.voice.channel
+    sq = server_queues[ctx.guild.id]
+    sq.active_text_channel = ctx.channel
+    queue_num -= 1
+    if queue_num < 0 or queue_num >= len(sq.queue):
+        await ctx.send("There is no song there.")
+        return
+    playing_song = sq.queue[queue_num]
+    await ctx.send(f"Now Playing: `{playing_song.title}` ({playing_song.length_formatted})")
+    ctx.voice_client.stop()
+    sq.current_queue_number = queue_num
+    play_song(sq, sq.channel)
+    sq.current_queue_number -= 1
+
+@client.command(name="info", aliases=["url", "link"])
+async def info(ctx: commands.Context, queue_num: int):
+    sq = server_queues[ctx.guild.id]
+    if queue_num < 1 or queue_num > len(sq.queue):
+        await ctx.send(f"There is no Song #{queue_num}")
+        return
+    song = sq.queue[queue_num-1]
+    await ctx.send(f"Song #{queue_num}: `{song.title}`\n({song.url})")
+
+
+@is_in_our_vc()
+@client.command(name="loop")
+async def loop(ctx: commands.Context):
+    sq = server_queues[ctx.guild.id]
+    sq.active_text_channel = ctx.channel
+    if sq.looping:
+        await ctx.send(":repeat_one: No longer looping queue!")
+        sq.looping = False
+    else:
+        await ctx.send(":repeat: Now looping queue!")
+        sq.looping = True
 
 
 @client.command(name="nowplaying", aliases=["np"])
