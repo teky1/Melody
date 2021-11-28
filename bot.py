@@ -1,4 +1,5 @@
 import json
+import math
 
 import discord
 from discord.ext import commands
@@ -113,13 +114,28 @@ async def disconnect(ctx: commands.Context):
 
 
 @client.command(name="queue", aliases=["q"])
-async def queue(ctx: commands.Context):
+async def queue(ctx: commands.Context, page: typing.Optional[int] = None):
     message = "```\n"
     sq = server_queues[ctx.guild.id]
-    for i, song in enumerate(sq.queue):
-        prefix = " >>> " if sq.current_queue_number == i else "     "
-        message += f"{prefix} {i+1}) {sq.queue[i].queue_string}\n"
-    message += "```"
+    total_length = len(sq.queue)
+    total_pages = int(math.ceil(total_length/10))
+
+    page = int(math.ceil((sq.current_queue_number+1)/10)) if page is None else page
+    print(page)
+    message += f"Queue - Page {page} of {total_pages}\n\n"
+
+    if page > total_pages or page < 1:
+        await ctx.send("Invalid page number.")
+        return
+
+    queue_page = sq.queue[(page-1)*10:(page-1)*10+10]
+
+    for i, song in enumerate(queue_page):
+        real_index = (page-1)*10+i
+        prefix = " >>> " if sq.current_queue_number == real_index else "     "
+        message += f"{prefix} {real_index+1}) {sq.queue[real_index].queue_string}\n"
+    message += f"\n-queue <page>" \
+               "```"
     await ctx.send(message[:1950])
 
 
