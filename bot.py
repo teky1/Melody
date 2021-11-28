@@ -2,6 +2,7 @@ import json
 import math
 
 import discord
+import random
 from discord.ext import commands
 from discord.utils import get
 from discord import FFmpegPCMAudio
@@ -182,6 +183,23 @@ async def info(ctx: commands.Context, queue_num: int):
         return
     song = sq.queue[queue_num-1]
     await ctx.send(f"Song #{queue_num}: `{song.title}`\n({song.url})")
+
+@is_in_our_vc()
+@client.command(name="shuffle", aliases=["randomize",])
+async def shuffle(ctx: commands.Context):
+    sq = server_queues[ctx.guild.id]
+    if sq.is_playing:
+        current_song = sq.current_song()
+        current_queue_position = sq.current_queue_number
+
+        random.shuffle(sq.queue)
+
+        new_index = sq.queue.index(current_song)
+        sq.queue[new_index], sq.queue[current_queue_position] = sq.queue[current_queue_position], sq.queue[new_index]
+    else:
+        random.shuffle(sq.queue)
+
+    await ctx.send(":twisted_rightwards_arrows: **Shuffled Queue!** *(-queue to see new updated queue)*")
 
 
 @is_in_our_vc()
