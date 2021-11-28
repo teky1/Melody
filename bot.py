@@ -1,3 +1,5 @@
+import json
+
 import discord
 from discord.ext import commands
 from discord.utils import get
@@ -80,20 +82,24 @@ async def play(ctx: commands.Context, *, query: str):
 
     current_queue_length = len(sq.queue)
 
-    song = get_song(query, sq)
+    song, is_playlist = await get_song(query, sq, ctx)
 
     if song is False:
-        await ctx.send("Invalid song.")
+        await ctx.send("There was an error trying to retrieve the song.")
 
     if sq.channel != channel:
         await channel.connect()
         sq.channel = channel
 
-    await ctx.send(f"Added `{song.title}` ({song.length_formatted})")
+    if not is_playlist:
+        await ctx.send(f"Added `{song.title}` ({song.length_formatted})")
+    else:
+        await ctx.send(f"Added `{song}` songs.")
 
     if not sq.is_playing:
         sq.current_queue_number = current_queue_length
         play_song(sq, channel)
+
 
 @is_in_our_vc()
 @client.command(name="disconnect", aliases=["dc", "die", "leave"])
@@ -114,7 +120,7 @@ async def queue(ctx: commands.Context):
         prefix = " >>> " if sq.current_queue_number == i else "     "
         message += f"{prefix} {i+1}) {sq.queue[i].queue_string}\n"
     message += "```"
-    await ctx.send(message)
+    await ctx.send(message[:1950])
 
 
 @is_in_our_vc()
@@ -182,5 +188,6 @@ async def nowplaying(ctx: commands.Context):
     await ctx.send(f"Now Playing: `{song.title}`\n({song.url})")
 
 if __name__ == "__main__":
-    with open("token.txt") as file:
-        client.run(file.read())
+    with open("secrets.json") as file:
+        secrets = json.load(file)
+        client.run(secrets["discord_bot_token"])

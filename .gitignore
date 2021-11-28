@@ -1,3 +1,6 @@
 /token.txt
 /.idea/
 /__pycache__/
+/secrets.json
+/.cache
+/todo.txt
