@@ -44,6 +44,7 @@ async def on_voice_state_update(member: discord.Member, before: discord.VoiceSta
         sq = server_queues[before.channel.guild.id]
         sq.is_playing = False
         sq.current_queue_number = None
+        sq.looping = False
         sq.queue.clear()
         try:
             await sq.server.voice_client.disconnect(force=True)
@@ -114,11 +115,28 @@ async def disconnect(ctx: commands.Context):
     await ctx.voice_client.disconnect()
 
 
+@is_in_our_vc()
+@client.command(name="clear")
+async def clear(ctx: commands.Context):
+    sq = server_queues[ctx.guild.id]
+    sq.is_playing = False
+    sq.current_queue_number = None
+    sq.looping = False
+    sq.queue.clear()
+    ctx.voice_client.stop()
+    await ctx.send(":broom: Cleared the queue")
+
+
 @client.command(name="queue", aliases=["q"])
 async def queue(ctx: commands.Context, page: typing.Optional[int] = None):
     message = "```\n"
     sq = server_queues[ctx.guild.id]
     total_length = len(sq.queue)
+
+    if total_length == 0:
+        await ctx.send("```The queue is empty :(```")
+        return
+
     total_pages = int(math.ceil(total_length/10))
 
     page = int(math.ceil((sq.current_queue_number+1)/10)) if page is None else page
