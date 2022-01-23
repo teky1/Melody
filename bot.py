@@ -150,26 +150,25 @@ async def queue(ctx: commands.Context, page: typing.Optional[int] = None):
 
     queue_page = sq.queue[(page-1)*10:(page-1)*10+10]
 
-    response = await ctx.send("Loading queue...")
+    async with ctx.typing():
+        threads = []
+        for i,song in enumerate(queue_page):
+            threads.append(threading.Thread(target=song.ensure_loaded))
+            threads[i].start()
 
-    threads = []
-    for i,song in enumerate(queue_page):
-        threads.append(threading.Thread(target=song.ensure_loaded))
-        threads[i].start()
+        for thread in threads:
+            thread.join()
 
-    for thread in threads:
-        thread.join()
+        for i, song in enumerate(queue_page):
+            real_index = (page-1)*10+i
+            prefix = " >>> " if sq.current_queue_number == real_index else "     "
+            message += f"{prefix} {real_index+1}) {sq.queue[real_index].queue_string}\n"
 
-    for i, song in enumerate(queue_page):
-        real_index = (page-1)*10+i
-        prefix = " >>> " if sq.current_queue_number == real_index else "     "
-        message += f"{prefix} {real_index+1}) {sq.queue[real_index].queue_string}\n"
+        message += "\n🔁 Looping queue" if sq.looping else "\nNot Looping"
 
-    message += "\n🔁 Looping queue" if sq.looping else "\nNot Looping"
-
-    message += f"\n-queue <page>" \
-               "```"
-    await response.edit(content=message[:1950])
+        message += f"\n-queue <page>" \
+                   "```"
+    await ctx.send(message[:1950])
 
 @is_in_our_vc()
 @client.command(name="skip", aliases=["next", "nextsong"])
