@@ -72,35 +72,40 @@ async def get_song(query: str, sq: ServerQueue, ctx: commands.Context):
 
         songs = await get_songs_from_spotify_playlist(playlist_id)
         song_count = len(songs)
-        await ctx.send(f"Loading {song_count} songs...\n*(This could take a couple minutes)*")
+        # await ctx.send(f"Loading {song_count} songs...\n*(This could take a couple minutes)*")
 
-        threads = []
-        song_objs = []
-
-        distributed_songs = list(split(songs, 20))
-        distributed_song_objs = [[None] * len(distributed_songs[i]) for i in range(len(distributed_songs))]
-
-        for i, distrubution in enumerate(distributed_songs):
-            threads.append(threading.Thread(target=run_list_of_songs, args=(distrubution, distributed_song_objs[i])))
-            threads[i].start()
-
-        # for i,song in enumerate(songs):
-        #     threads.append(threading.Thread(target=get_yt_link_from_name, args=(song, song_objs, i)))
+        # threads = []
+        # song_objs = []
+        #
+        # distributed_songs = list(split(songs, 20))
+        # distributed_song_objs = [[None] * len(distributed_songs[i]) for i in range(len(distributed_songs))]
+        #
+        # for i, distrubution in enumerate(distributed_songs):
+        #     threads.append(threading.Thread(target=run_list_of_songs, args=(distrubution, distributed_song_objs[i])))
         #     threads[i].start()
+        #
+        # # for i,song in enumerate(songs):
+        # #     threads.append(threading.Thread(target=get_yt_link_from_name, args=(song, song_objs, i)))
+        # #     threads[i].start()
+        #
+        # for thread in threads:
+        #     thread.join()
+        #
+        # for distrubution in distributed_song_objs:
+        #     for song in distrubution:
+        #         song_objs.append(song)
+        #
+        # for i,song_obj in enumerate(song_objs):
+        #     if song_obj == False:
+        #         await ctx.send(f"Couldn't find YouTube video for `{songs[i]}`")
+        #     else:
+        #         sq.queue.append(song_obj)
+        # song = song_count
 
-        for thread in threads:
-            thread.join()
-
-        for distrubution in distributed_song_objs:
-            for song in distrubution:
-                song_objs.append(song)
-
-        for i,song_obj in enumerate(song_objs):
-            if song_obj == False:
-                await ctx.send(f"Couldn't find YouTube video for `{songs[i]}`")
-            else:
-                sq.queue.append(song_obj)
+        for song in songs:
+            sq.queue.append(Song(lazy_loaded=True, query=song))
         song = song_count
+
 
     else:
         song = get_yt_link_from_name(query)

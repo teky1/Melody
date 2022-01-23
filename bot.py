@@ -1,5 +1,6 @@
 import json
 import math
+import threading
 
 import discord
 import random
@@ -57,6 +58,7 @@ async def on_voice_state_update(member: discord.Member, before: discord.VoiceSta
 def play_song(sq, channel):
     sq.is_playing = True
     voice = get(client.voice_clients, channel=channel)
+    sq.current_song().ensure_loaded()
     voice.play(FFmpegPCMAudio(sq.current_song().info_dict["url"], **FFMPEG_OPTIONS),
                after=lambda x: on_song_end(sq, channel))
 
@@ -148,6 +150,16 @@ async def queue(ctx: commands.Context, page: typing.Optional[int] = None):
 
     queue_page = sq.queue[(page-1)*10:(page-1)*10+10]
 
+    response = await ctx.send("Loading queue...")
+
+    threads = []
+    for i,song in enumerate(queue_page):
+        threads.append(threading.Thread(target=song.ensure_loaded))
+        threads[i].start()
+
+    for thread in threads:
+        thread.join()
+
     for i, song in enumerate(queue_page):
         real_index = (page-1)*10+i
         prefix = " >>> " if sq.current_queue_number == real_index else "     "
@@ -157,7 +169,7 @@ async def queue(ctx: commands.Context, page: typing.Optional[int] = None):
 
     message += f"\n-queue <page>" \
                "```"
-    await ctx.send(message[:1950])
+    await response.edit(content=message[:1950])
 
 @is_in_our_vc()
 @client.command(name="skip", aliases=["next", "nextsong"])
@@ -188,11 +200,13 @@ async def jump(ctx: commands.Context, queue_num: int):
         await ctx.send("There is no song there.")
         return
     playing_song = sq.queue[queue_num]
+    playing_song.ensure_loaded()
     await ctx.send(f"Now Playing: `{playing_song.title}` ({playing_song.length_formatted})")
     ctx.voice_client.stop()
     sq.current_queue_number = queue_num
     play_song(sq, sq.channel)
     sq.current_queue_number -= 1
+
 
 @client.command(name="info", aliases=["url", "link"])
 async def info(ctx: commands.Context, queue_num: int):
@@ -201,6 +215,7 @@ async def info(ctx: commands.Context, queue_num: int):
         await ctx.send(f"There is no Song #{queue_num}")
         return
     song = sq.queue[queue_num-1]
+    song.ensure_loaded()
     await ctx.send(f"Song #{queue_num}: `{song.title}`\n({song.url})")
 
 @is_in_our_vc()
@@ -224,6 +239,8 @@ async def remove(ctx: commands.Context, id: int):
     else:
         await ctx.send("an error ocurred dm teky")
         return
+
+    removed.ensure_loaded()
 
     await ctx.send(f"Removed `{removed.title}`")
 
@@ -265,6 +282,7 @@ async def loop(ctx: commands.Context):
 async def nowplaying(ctx: commands.Context):
     sq = server_queues[ctx.guild.id]
     song = sq.current_song()
+    song.ensure_loaded()
     await ctx.send(f"Now Playing: `{song.title}`\n({song.url})")
 
 @commands.is_owner()
@@ -275,7 +293,7 @@ async def status(ctx: commands.Context):
                    f"Server: {sq.server}\n"
                    f"Is Playing: {sq.is_playing}\n"
                    f"Current Queue Num: {sq.current_queue_number}\n"
-                   f"Queue: {sq.queue}\n"
+                   f"Queue: {str(sq.queue)[:1500]}\n"
                    f"VC: {sq.channel}\n"
                    f"Active Text Channel: {sq.active_text_channel}\n"
                    f"Looping: {sq.looping}\n"
