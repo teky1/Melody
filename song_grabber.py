@@ -42,6 +42,13 @@ def get_yt_link_from_name(name, return_obj=None, index=0):
     else:
         return_obj[index] = song
 
+def run_list_of_songs(songlist, return_obj):
+    for i,song in enumerate(songlist):
+        get_yt_link_from_name(song, return_obj, i)
+
+def split(a, n):
+    k, m = divmod(len(a), n)
+    return (a[i*k+min(i, m):(i+1)*k+min(i+1, m)] for i in range(n))
 
 async def get_song(query: str, sq: ServerQueue, ctx: commands.Context):
 
@@ -68,14 +75,25 @@ async def get_song(query: str, sq: ServerQueue, ctx: commands.Context):
         await ctx.send(f"Loading {song_count} songs...\n*(This could take a couple minutes)*")
 
         threads = []
-        song_objs = [None] * len(songs)
+        song_objs = []
 
-        for i,song in enumerate(songs):
-            threads.append(threading.Thread(target=get_yt_link_from_name, args=(song, song_objs, i)))
+        distributed_songs = list(split(songs, 20))
+        distributed_song_objs = [[None] * len(distributed_songs[i]) for i in range(len(distributed_songs))]
+
+        for i, distrubution in enumerate(distributed_songs):
+            threads.append(threading.Thread(target=run_list_of_songs, args=(distrubution, distributed_song_objs[i])))
             threads[i].start()
+
+        # for i,song in enumerate(songs):
+        #     threads.append(threading.Thread(target=get_yt_link_from_name, args=(song, song_objs, i)))
+        #     threads[i].start()
 
         for thread in threads:
             thread.join()
+
+        for distrubution in distributed_song_objs:
+            for song in distrubution:
+                song_objs.append(song)
 
         for i,song_obj in enumerate(song_objs):
             if song_obj == False:

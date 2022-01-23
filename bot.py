@@ -140,7 +140,6 @@ async def queue(ctx: commands.Context, page: typing.Optional[int] = None):
     total_pages = int(math.ceil(total_length/10))
 
     page = int(math.ceil((sq.current_queue_number+1)/10)) if page is None else page
-    print(page)
     message += f"Queue - Page {page} of {total_pages}\n\n"
 
     if page > total_pages or page < 1:
@@ -153,10 +152,12 @@ async def queue(ctx: commands.Context, page: typing.Optional[int] = None):
         real_index = (page-1)*10+i
         prefix = " >>> " if sq.current_queue_number == real_index else "     "
         message += f"{prefix} {real_index+1}) {sq.queue[real_index].queue_string}\n"
+
+    message += "\n🔁 Looping queue" if sq.looping else "\nNot Looping"
+
     message += f"\n-queue <page>" \
                "```"
     await ctx.send(message[:1950])
-
 
 @is_in_our_vc()
 @client.command(name="skip", aliases=["next", "nextsong"])
@@ -203,6 +204,32 @@ async def info(ctx: commands.Context, queue_num: int):
     await ctx.send(f"Song #{queue_num}: `{song.title}`\n({song.url})")
 
 @is_in_our_vc()
+@client.command(name="remove", aliases=["delete"])
+async def remove(ctx: commands.Context, id: int):
+    sq = server_queues[ctx.guild.id]
+    if id < 1 or id > len(sq.queue):
+        await ctx.send("There is no song there")
+        return
+    elif id - 1 > sq.current_queue_number:
+        removed = sq.queue.pop(id - 1)
+    elif id - 1 < sq.current_queue_number:
+        removed = sq.queue.pop(id - 1)
+        sq.current_queue_number -= 1
+    elif id - 1 == sq.current_queue_number:
+        ctx.voice_client.stop()
+        sq.current_queue_number = sq.current_queue_number + 1
+        play_song(sq, channel=sq.channel)
+        sq.current_queue_number -= 2
+        removed = sq.queue.pop(id - 1)
+    else:
+        await ctx.send("an error ocurred dm teky")
+        return
+
+    await ctx.send(f"Removed `{removed.title}`")
+
+
+
+@is_in_our_vc()
 @client.command(name="shuffle", aliases=["randomize",])
 async def shuffle(ctx: commands.Context):
     sq = server_queues[ctx.guild.id]
@@ -218,6 +245,7 @@ async def shuffle(ctx: commands.Context):
         random.shuffle(sq.queue)
 
     await ctx.send(":twisted_rightwards_arrows: **Shuffled Queue!** *(-queue to see new updated queue)*")
+
 
 
 @is_in_our_vc()
@@ -238,6 +266,20 @@ async def nowplaying(ctx: commands.Context):
     sq = server_queues[ctx.guild.id]
     song = sq.current_song()
     await ctx.send(f"Now Playing: `{song.title}`\n({song.url})")
+
+@commands.is_owner()
+@client.command(name="status")
+async def status(ctx: commands.Context):
+    sq = server_queues[ctx.guild.id]
+    await ctx.send(f"```\n"
+                   f"Server: {sq.server}\n"
+                   f"Is Playing: {sq.is_playing}\n"
+                   f"Current Queue Num: {sq.current_queue_number}\n"
+                   f"Queue: {sq.queue}\n"
+                   f"VC: {sq.channel}\n"
+                   f"Active Text Channel: {sq.active_text_channel}\n"
+                   f"Looping: {sq.looping}\n"
+                   f"```")
 
 if __name__ == "__main__":
     with open("secrets.json") as file:
