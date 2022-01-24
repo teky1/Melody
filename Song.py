@@ -25,6 +25,7 @@ class Song:
         self.title = None
         self.length = None
         self.length_formatted = None
+        self.title_formatted = None
         self.queue_string = None
 
         if not lazy_loaded:
@@ -68,8 +69,8 @@ class Song:
             self.length = 60
 
         if len(self.title) <= 38:
-            title_formatted = self.title + " " * (38 - len(self.title))
+            self.title_formatted = self.title + " " * (38 - len(self.title))
         else:
-            title_formatted = self.title[:35] + "..."
-        self.queue_string = f"{title_formatted} {self.length_formatted}"
+            self.title_formatted = self.title[:35] + "..."
+        self.queue_string = f"{self.title_formatted} {self.length_formatted}"
         self.loaded = True

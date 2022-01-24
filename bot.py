@@ -1,14 +1,18 @@
 import json
 import math
+import re
 import threading
 
 import discord
 import random
+
+import requests
 from discord.ext import commands
 from discord.utils import get
 from discord import FFmpegPCMAudio
 from ServerQueue import ServerQueue
 from song_grabber import get_song
+from Song import Song
 import typing
 
 client = commands.Bot(command_prefix="-")
@@ -37,6 +41,13 @@ def is_in_our_vc():
         else:
             await ctx.send("You need to be in the bot's VC to use this command.")
             return False
+    return commands.check(predicate)
+
+def ensure_queue():
+    async def predicate(ctx:commands.Context):
+        if ctx.guild.id not in server_queues:
+            server_queues[ctx.guild.id] = ServerQueue(ctx.guild)
+        return True
     return commands.check(predicate)
 
 @client.event
@@ -77,10 +88,9 @@ def on_song_end(sq, channel):
     play_song(sq, channel)
 
 @is_in_our_vc()
+@ensure_queue()
 @client.command(name="play", aliases=["p"])
 async def play(ctx: commands.Context, *, query: str):
-    if ctx.guild.id not in server_queues:
-        server_queues[ctx.guild.id] = ServerQueue(ctx.guild)
     sq = server_queues[ctx.guild.id]
     sq.active_text_channel = ctx.channel
     channel = ctx.author.voice.channel
@@ -118,6 +128,7 @@ async def disconnect(ctx: commands.Context):
 
 
 @is_in_our_vc()
+@ensure_queue()
 @client.command(name="clear")
 async def clear(ctx: commands.Context):
     sq = server_queues[ctx.guild.id]
@@ -128,7 +139,7 @@ async def clear(ctx: commands.Context):
     ctx.voice_client.stop()
     await ctx.send(":broom: Cleared the queue")
 
-
+@ensure_queue()
 @client.command(name="queue", aliases=["q"])
 async def queue(ctx: commands.Context, page: typing.Optional[int] = None):
     message = "```\n"
@@ -181,6 +192,7 @@ async def skip(ctx: commands.Context, amount: typing.Optional[int] = 1):
         await ctx.send("There's no song to skip to there.")
         return
     playing_song = sq.queue[curr_queue_num + amount]
+    playing_song.ensure_loaded()
     await ctx.send(f"Now Playing: `{playing_song.title}` ({playing_song.length_formatted})")
     ctx.voice_client.stop()
     sq.current_queue_number = curr_queue_num + amount
@@ -206,7 +218,7 @@ async def jump(ctx: commands.Context, queue_num: int):
     play_song(sq, sq.channel)
     sq.current_queue_number -= 1
 
-
+@ensure_queue()
 @client.command(name="info", aliases=["url", "link"])
 async def info(ctx: commands.Context, queue_num: int):
     sq = server_queues[ctx.guild.id]
@@ -218,6 +230,7 @@ async def info(ctx: commands.Context, queue_num: int):
     await ctx.send(f"Song #{queue_num}: `{song.title}`\n({song.url})")
 
 @is_in_our_vc()
+@ensure_queue()
 @client.command(name="remove", aliases=["delete"])
 async def remove(ctx: commands.Context, id: int):
     sq = server_queues[ctx.guild.id]
@@ -265,6 +278,7 @@ async def shuffle(ctx: commands.Context):
 
 
 @is_in_our_vc()
+@ensure_queue()
 @client.command(name="loop")
 async def loop(ctx: commands.Context):
     sq = server_queues[ctx.guild.id]
@@ -276,7 +290,7 @@ async def loop(ctx: commands.Context):
         await ctx.send(":repeat: Now looping queue!")
         sq.looping = True
 
-
+@ensure_queue()
 @client.command(name="nowplaying", aliases=["np"])
 async def nowplaying(ctx: commands.Context):
     sq = server_queues[ctx.guild.id]
@@ -285,6 +299,7 @@ async def nowplaying(ctx: commands.Context):
     await ctx.send(f"Now Playing: `{song.title}`\n({song.url})")
 
 @commands.is_owner()
+@ensure_queue()
 @client.command(name="status")
 async def status(ctx: commands.Context):
     sq = server_queues[ctx.guild.id]
@@ -297,6 +312,58 @@ async def status(ctx: commands.Context):
                    f"Active Text Channel: {sq.active_text_channel}\n"
                    f"Looping: {sq.looping}\n"
                    f"```")
+
+@client.command(name="search")
+async def search(ctx: commands.Context, *, query: str):
+    url = "https://www.youtube.com/results?"
+    params = {"search_query": query}
+    raw_html = requests.get(url=url, params=params).text
+    urls = [f"https://www.youtube.com/watch?v=" + z for z in re.findall(r'/watch\?v=(.{11})', raw_html)][:5]
+
+    threads = []
+    songs = []
+    async with ctx.typing():
+        for vid in urls:
+            song = Song(url=vid, lazy_loaded=True)
+            songs.append(song)
+            threads.append(threading.Thread(target=song.ensure_loaded))
+            threads[-1].start()
+
+        for thread in threads:
+            thread.join()
+
+        resp = "```--- Search Results ---\n"
+        for i in range(len(songs)):
+            resp += f"{i+1}) ({songs[i].length_formatted}) {songs[i].title_formatted}\n{songs[i].url}\n\n"
+        resp += "```"
+
+    await ctx.send(resp)
+
+@is_in_our_vc()
+@ensure_queue()
+@client.command(name="playresult")
+async def playresult(ctx: commands.Context, resultNum: typing.Optional[int] = None):
+    if ctx.guild.id not in server_queues:
+        server_queues[ctx.guild.id] = ServerQueue(ctx.guild)
+    sq = server_queues[ctx.guild.id]
+    try:
+        referenced = await ctx.fetch_message(ctx.message.reference.message_id)
+    except AttributeError:
+        referenced = None
+
+    if referenced is None or resultNum is None or not referenced.content.startswith("```--- Search Results ---\n"):
+        await ctx.send("**Correct Usage:** This command is used to play a search result. First use `-search <query>` to "
+                       "search for a query and then **REPLY** to the search results with the command `-playresult <result #>`"
+                       "to play a specific one of the results.")
+        return
+
+    if resultNum > 5 or resultNum < 1:
+        await ctx.send("Invalid Result Number")
+
+    url = referenced.content.split("\n")[resultNum*3-1]
+    await play(ctx, query=url)
+
+
 
 if __name__ == "__main__":
     with open("secrets.json") as file:
