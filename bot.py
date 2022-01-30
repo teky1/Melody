@@ -334,8 +334,8 @@ async def search(ctx: commands.Context, *, query: str):
 
         resp = "```--- Search Results ---\n"
         for i in range(len(songs)):
-            resp += f"{i+1}) ({songs[i].length_formatted}) {songs[i].title_formatted}\n{songs[i].url}\n\n"
-        resp += "```"
+            resp += f"{i+1}) ({songs[i].length_formatted}) {songs[i].title[:75]}\n{songs[i].url}\n\n"
+        resp += "To play one of these results, reply to this message with: -playresult <result #>```"
 
     await ctx.send(resp)
 
