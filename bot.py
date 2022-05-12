@@ -8,11 +8,13 @@ import random
 
 import requests
 from discord.ext import commands
+from discord.ext.commands import BucketType
 from discord.utils import get
 from discord import FFmpegPCMAudio
 from ServerQueue import ServerQueue
 from song_grabber import get_song
 from Song import Song
+import database_manager as db
 import typing
 
 client = commands.Bot(command_prefix="-")
@@ -182,7 +184,7 @@ async def queue(ctx: commands.Context, page: typing.Optional[int] = None):
     await ctx.send(message[:1950])
 
 @is_in_our_vc()
-@client.command(name="skip", aliases=["next", "nextsong"])
+@client.command(name="skip", aliases=["next", "nextsong", "s"])
 async def skip(ctx: commands.Context, amount: typing.Optional[int] = 1):
     vc = ctx.author.voice.channel
     sq = server_queues[ctx.guild.id]
@@ -201,7 +203,7 @@ async def skip(ctx: commands.Context, amount: typing.Optional[int] = 1):
 
 
 @is_in_our_vc()
-@client.command(name="jump", aliases=["jumpto", "skipto"])
+@client.command(name="jump", aliases=["jumpto", "skipto", "j"])
 async def jump(ctx: commands.Context, queue_num: int):
     vc = ctx.author.voice.channel
     sq = server_queues[ctx.guild.id]
@@ -219,7 +221,7 @@ async def jump(ctx: commands.Context, queue_num: int):
     sq.current_queue_number -= 1
 
 @ensure_queue()
-@client.command(name="info", aliases=["url", "link"])
+@client.command(name="info", aliases=["url", "link", "i"])
 async def info(ctx: commands.Context, queue_num: int):
     sq = server_queues[ctx.guild.id]
     if queue_num < 1 or queue_num > len(sq.queue):
@@ -231,7 +233,7 @@ async def info(ctx: commands.Context, queue_num: int):
 
 @is_in_our_vc()
 @ensure_queue()
-@client.command(name="remove", aliases=["delete"])
+@client.command(name="remove", aliases=["delete", "rm"])
 async def remove(ctx: commands.Context, id: int):
     sq = server_queues[ctx.guild.id]
     if id < 1 or id > len(sq.queue):
@@ -346,6 +348,7 @@ async def playresult(ctx: commands.Context, resultNum: typing.Optional[int] = No
     if ctx.guild.id not in server_queues:
         server_queues[ctx.guild.id] = ServerQueue(ctx.guild)
     sq = server_queues[ctx.guild.id]
+    sq.active_text_channel = ctx.channel
     try:
         referenced = await ctx.fetch_message(ctx.message.reference.message_id)
     except AttributeError:
@@ -363,6 +366,70 @@ async def playresult(ctx: commands.Context, resultNum: typing.Optional[int] = No
     url = referenced.content.split("\n")[resultNum*3-1]
     await play(ctx, query=url)
 
+@ensure_queue()
+@client.command(name="saveplaylist", aliases=["savepl"])
+async def saveplaylist(ctx: commands.Context, playlistName: typing.Optional[str]):
+    sq = server_queues[ctx.guild.id]
+    sq.active_text_channel = ctx.channel
+    if playlistName is None:
+        await ctx.send("**Correct Format**: -saveplaylist <playlist_name>")
+        return
+    if not playlistName.isalpha() or len(playlistName) > 30:
+        await ctx.send("Playlist names must be alphabetic (no spaces or numbers) and under 30 letters long.")
+        return
+    if not db.getPlaylist(playlistName) is None:
+        await ctx.send("A playlist with that name already exists.")
+        return
+    if len(sq.queue) < 1:
+        await ctx.send("There are no songs in the queue to create a playlist with.")
+        return
+
+    tracks = []
+    for song in sq.queue:
+        if song.url is None:
+            song.get_yt_url()
+        tracks.append(song.url.split("?v=")[-1][:11])
+
+    db.createPlaylist(playlistName, ctx.author.id, tracks)
+
+    if db.getPlaylist(playlistName) is None:
+        await ctx.send("There was an issue creating the playlist.")
+    else:
+        await ctx.send(f"Queue saved as playlist \"{playlistName}\"")
+
+@ensure_queue()
+@is_in_our_vc()
+@commands.cooldown(rate=1, per=5, type=BucketType.member)
+@client.command(name="playlist", aliases=["pl"])
+async def playlist(ctx: commands.Context, playlistName: typing.Optional[str]):
+    sq = server_queues[ctx.guild.id]
+    sq.active_text_channel = ctx.channel
+    channel = ctx.author.voice.channel
+
+    if playlistName is None:
+        await ctx.send("**Correct Format**: -playlsit <playlist_name>")
+        return
+
+    playlist = db.getPlaylist(playlistName[:30])
+    if playlist is None:
+        await ctx.send(f"Playlist \"{playlistName}\" does not exist.")
+        return
+    playlist = playlist[-1].split(",")
+
+    current_queue_length = len(sq.queue)
+
+    for video_id in playlist:
+        sq.queue.append(Song(url="https://www.youtube.com/watch?v="+video_id, lazy_loaded=True))
+
+    if sq.channel != channel:
+        await channel.connect()
+        sq.channel = channel
+
+    await ctx.send(f"Added `{len(playlist)}` songs")
+
+    if not sq.is_playing:
+        sq.current_queue_number = current_queue_length
+        play_song(sq, channel)
 
 
 if __name__ == "__main__":
