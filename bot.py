@@ -16,6 +16,7 @@ from song_grabber import get_song
 from Song import Song
 import database_manager as db
 import typing
+import spotipy
 
 client = commands.Bot(command_prefix="-")
 server_queues = {}
@@ -430,6 +431,32 @@ async def playlist(ctx: commands.Context, playlistName: typing.Optional[str]):
     if not sq.is_playing:
         sq.current_queue_number = current_queue_length
         play_song(sq, channel)
+
+@commands.cooldown(rate=1, per=1, type=BucketType.member)
+@client.command(name="spotify")
+async def spotify(ctx: commands.Context):
+    data_entry = db.getSpotifyKey(ctx.author.id)
+    msg = ""
+    if data_entry is None:
+        msg += "🚫 No Spotify Account Linked"
+    else:
+        msg += "✅ Spotify Account Linked: "
+        sp = spotipy.Spotify(auth=data_entry[1])
+        msg += f'**{sp.current_user()["display_name"]}**'
+
+
+    dm_message = "*How to link your Spotify account:*\n\n" \
+                 f"1. Go to the following link: https://joelchem.com/music/auth/{ctx.author.id} \n" \
+                 f"2. Log In there with the Spotify account you want to link\n" \
+                 f"3. Make sure it takes you to a page that says \"Success!\" and then close the tab. " \
+                 f"If this page does not say \"Success\" or if you get an error or issue during any part " \
+                 f"of this process, DM Teky#9703\n\n*Once you do this you can run the `-spotify` command again" \
+                 f"to make sure your account is properly linked*"
+    await ctx.author.send(content=dm_message)
+
+    msg += "\n\n*A DM has been sent to you with instructions on how to link your Spotify account.*"
+
+    await ctx.send(msg)
 
 
 if __name__ == "__main__":
