@@ -23,6 +23,9 @@ def getPlaylist(name):
             return playlists.row_values(i+2)
     return None
 
+def getAllData():
+    return playlists.get_values("A2:C1000")
+
 def getSpotifyKey(id):
     local = auth_db.get_values("A2:D1000")
     for entry in local:

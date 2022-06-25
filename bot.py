@@ -432,6 +432,15 @@ async def playlist(ctx: commands.Context, playlistName: typing.Optional[str]):
         sq.current_queue_number = current_queue_length
         play_song(sq, channel)
 
+@commands.cooldown(rate=1, per=5, type=BucketType.member)
+@client.command(name="playlists", aliases=["listplaylists", "listpl"])
+async def playlists(ctx: commands.Context):
+    data = db.getAllData()
+    message = "**All Playlists**\n"
+    for pl in data:
+        message += f"{pl[0]} - {pl[2].count(',')+1} songs\n"
+    await ctx.send(message)
+
 @commands.cooldown(rate=1, per=1, type=BucketType.member)
 @client.command(name="spotify")
 async def spotify(ctx: commands.Context):
