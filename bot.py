@@ -439,22 +439,28 @@ async def spotify(ctx: commands.Context):
     msg = ""
     if data_entry is None:
         msg += "🚫 No Spotify Account Linked"
+
+        dm_message = "*How to link your Spotify account:*\n\n" \
+                     f"1. Go to the following link and log in with Spotify: " \
+                     f"https://joelchem.com/music/auth/{ctx.author.id} \n" \
+                     f"2. **IMPORTANT:** Once you have logged in DM Teky#9703 the the email for " \
+                     f"your Spotify account so he can add you to the whitelist. Your account will not be linked " \
+                     f"until he adds you to the whitelist." \
+                     f"\n\n*Once you're added to the whitelist you can run the `-spotify` command again" \
+                     f"to make sure your account is properly linked*"
+        await ctx.author.send(content=dm_message)
+
+        msg += "\n\n*A DM has been sent to you with instructions on how to link your Spotify account.*"
+
     else:
         msg += "✅ Spotify Account Linked: "
         sp = spotipy.Spotify(auth=data_entry[1])
-        msg += f'**{sp.current_user()["display_name"]}**'
-
-
-    dm_message = "*How to link your Spotify account:*\n\n" \
-                 f"1. Go to the following link: https://joelchem.com/music/auth/{ctx.author.id} \n" \
-                 f"2. Log In there with the Spotify account you want to link\n" \
-                 f"3. Make sure it takes you to a page that says \"Success!\" and then close the tab. " \
-                 f"If this page does not say \"Success\" or if you get an error or issue during any part " \
-                 f"of this process, DM Teky#9703\n\n*Once you do this you can run the `-spotify` command again" \
-                 f"to make sure your account is properly linked*"
-    await ctx.author.send(content=dm_message)
-
-    msg += "\n\n*A DM has been sent to you with instructions on how to link your Spotify account.*"
+        try:
+            msg += f'**{sp.current_user()["display_name"]}**'
+        except spotipy.exceptions.SpotifyException:
+            msg = "⚠ Account Not Whitelisted \n\n *You still need to DM Teky#9703 your Spotify email " \
+                  "so he can add you to the whitelist. If you've already done this, it may take a few minutes " \
+                  "for the whitelist to update so try again in a bit.*"
 
     await ctx.send(msg)
 

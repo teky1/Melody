@@ -62,5 +62,5 @@ def refreshSpotifyToken(entry, local=None):
             break
     if not added:
         local.append(entry)
-    auth_db.update("A2:D1000", local)
+    auth_db.update("A2:D1000", local, value_input_option="USER_ENTERED")
     return entry
