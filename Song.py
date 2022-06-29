@@ -16,7 +16,7 @@ ydl_opts = {
 }
 
 class Song:
-    def __init__(self, *, url=None, lazy_loaded=False, query=None):
+    def __init__(self, *, url=None, lazy_loaded=False, query=None, added_by=None):
         self.url = url
         self.query = query
 
@@ -27,6 +27,7 @@ class Song:
         self.length_formatted = None
         self.title_formatted = None
         self.queue_string = None
+
 
         if not lazy_loaded:
             if self.url is None:

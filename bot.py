@@ -53,6 +53,15 @@ def ensure_queue():
         return True
     return commands.check(predicate)
 
+def ensure_spotify_linked():
+    async def predicate(ctx: commands.Context):
+        if db.getSpotifyKey(ctx.author.id) is None:
+            await ctx.send("You need to have Spotify linked to use this command. You can link your account"
+                           "by using the `-spotify` command.")
+            return False
+        return True
+    return commands.check(predicate)
+
 @client.event
 async def on_voice_state_update(member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
     if client.user.id == member.id and before.channel is not None and after.channel is None:
@@ -408,7 +417,7 @@ async def playlist(ctx: commands.Context, playlistName: typing.Optional[str]):
     channel = ctx.author.voice.channel
 
     if playlistName is None:
-        await ctx.send("**Correct Format**: -playlsit <playlist_name>")
+        await ctx.send("**Correct Format**: -playlist <playlist_name>")
         return
 
     playlist = db.getPlaylist(playlistName[:30])
@@ -474,6 +483,65 @@ async def spotify(ctx: commands.Context):
                   "for the whitelist to update so try again in a bit.*"
 
     await ctx.send(msg)
+
+@ensure_queue()
+@is_in_our_vc()
+@commands.cooldown(rate=1, per=1, type=BucketType.member)
+@client.command(name="recent", aliases=["recenttop","toprecent"])
+async def recent(ctx: commands.Context, target: typing.Optional[discord.Member] = None):
+    sq = server_queues[ctx.guild.id]
+    sq.active_text_channel = ctx.channel
+    channel = ctx.author.voice.channel
+    current_queue_length = len(sq.queue)
+
+    id = ctx.author.id if target is None else target.id
+    key = db.getSpotifyKey(id)
+
+    if key is None and target is None:
+        await ctx.send("You need to have Spotify linked to use this command. You can link your account"
+                       "by using the `-spotify` command.")
+        return
+    elif key is None and target is not None:
+        await ctx.send("This person does not have Spotify linked to their account. Tell them to link their Spotify "
+                       "by using the `-spotify` command.")
+        return
+
+    key = key[1]
+
+    sp = spotipy.Spotify(auth=key)
+
+    terms = ["short_term",]
+
+    songs = []
+
+    for term in terms:
+        data = sp.current_user_top_tracks(time_range=term)
+        for song in data["items"]:
+            songs.append(f'{song["artists"][0]["name"]} - {song["name"]}')
+        songs = list(set(songs))
+        if len(songs) >= 10:
+            songs = songs[:10]
+            break
+
+    song_count = len(songs)
+    if song_count == 0:
+        await ctx.send(f"Could not find any recent top songs for {'you' if target is None else 'them'} :(")
+        return
+
+    msg = "```"
+    for song in songs:
+        sq.queue.append(Song(lazy_loaded=True, query=song))
+        msg += f'{song}\n'
+
+    if sq.channel != channel:
+        await channel.connect()
+        sq.channel = channel
+    target_name = 'your' if target is None else "**"+target.display_name+"\'s**"
+    await ctx.send(f"Added `{song_count}` of {target_name} recent top tracks\n{msg}```")
+
+    if not sq.is_playing:
+        sq.current_queue_number = current_queue_length
+        play_song(sq, channel)
 
 
 if __name__ == "__main__":

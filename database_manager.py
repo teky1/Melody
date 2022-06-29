@@ -30,7 +30,7 @@ def getSpotifyKey(id):
     local = auth_db.get_values("A2:D1000")
     for entry in local:
         if entry[0] == str(id):
-            if int(entry[3]) > time.time():
+            if int(entry[3]) < time.time():
                 return refreshSpotifyToken(entry, local)
             else:
                 return entry
