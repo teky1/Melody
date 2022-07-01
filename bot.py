@@ -269,7 +269,6 @@ async def remove(ctx: commands.Context, id: int):
     await ctx.send(f"Removed `{removed.title}`")
 
 
-
 @is_in_our_vc()
 @client.command(name="shuffle", aliases=["randomize",])
 async def shuffle(ctx: commands.Context):
@@ -286,7 +285,6 @@ async def shuffle(ctx: commands.Context):
         random.shuffle(sq.queue)
 
     await ctx.send(":twisted_rightwards_arrows: **Shuffled Queue!** *(-queue to see new updated queue)*")
-
 
 
 @is_in_our_vc()
@@ -543,6 +541,64 @@ async def recent(ctx: commands.Context, target: typing.Optional[discord.Member] 
         sq.current_queue_number = current_queue_length
         play_song(sq, channel)
 
+@ensure_queue()
+@is_in_our_vc()
+@commands.cooldown(rate=1, per=1, type=BucketType.member)
+@client.command(name="top", aliases=["overalltop",])
+async def top(ctx: commands.Context, target: typing.Optional[discord.Member] = None):
+    sq = server_queues[ctx.guild.id]
+    sq.active_text_channel = ctx.channel
+    channel = ctx.author.voice.channel
+    current_queue_length = len(sq.queue)
+
+    id = ctx.author.id if target is None else target.id
+    key = db.getSpotifyKey(id)
+
+    if key is None and target is None:
+        await ctx.send("You need to have Spotify linked to use this command. You can link your account"
+                       "by using the `-spotify` command.")
+        return
+    elif key is None and target is not None:
+        await ctx.send("This person does not have Spotify linked to their account. Tell them to link their Spotify "
+                       "by using the `-spotify` command.")
+        return
+
+    key = key[1]
+
+    sp = spotipy.Spotify(auth=key)
+
+    terms = ["long_term",]
+
+    songs = []
+
+    for term in terms:
+        data = sp.current_user_top_tracks(time_range=term)
+        for song in data["items"]:
+            songs.append(f'{song["artists"][0]["name"]} - {song["name"]}')
+        songs = list(set(songs))
+        if len(songs) >= 10:
+            songs = songs[:10]
+            break
+
+    song_count = len(songs)
+    if song_count == 0:
+        await ctx.send(f"Could not find any overall top songs for {'you' if target is None else 'them'} :(")
+        return
+
+    msg = "```"
+    for song in songs:
+        sq.queue.append(Song(lazy_loaded=True, query=song))
+        msg += f'{song}\n'
+
+    if sq.channel != channel:
+        await channel.connect()
+        sq.channel = channel
+    target_name = 'your' if target is None else "**"+target.display_name+"\'s**"
+    await ctx.send(f"Added `{song_count}` of {target_name} overall top tracks\n{msg}```")
+
+    if not sq.is_playing:
+        sq.current_queue_number = current_queue_length
+        play_song(sq, channel)
 
 if __name__ == "__main__":
     with open("secrets.json") as file:
