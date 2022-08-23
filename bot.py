@@ -629,8 +629,6 @@ async def top(ctx: commands.Context, target: typing.Optional[discord.Member] = N
         sq.current_queue_number = current_queue_length
         play_song(sq, channel)
 
-@ensure_queue()
-
 
 if __name__ == "__main__":
     with open("secrets.json") as file:
