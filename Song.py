@@ -4,6 +4,7 @@ import requests
 import re
 from urllib.error import HTTPError
 
+
 ydl_opts = {
     'format': 'bestaudio/best',
     'postprocessors': [
@@ -16,7 +17,7 @@ ydl_opts = {
 }
 
 class Song:
-    def __init__(self, *, url=None, lazy_loaded=False, query=None, added_by=None):
+    def __init__(self, *, url=None, lazy_loaded=False, query=None, music=False, added_by=None):
         self.url = url
         self.query = query
 
@@ -27,6 +28,7 @@ class Song:
         self.length_formatted = None
         self.title_formatted = None
         self.queue_string = None
+        self.music = music
 
 
         if not lazy_loaded:

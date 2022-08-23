@@ -17,6 +17,7 @@ from Song import Song
 import database_manager as db
 import typing
 import spotipy
+import ytmusicapi
 
 client = commands.Bot(command_prefix="-")
 server_queues = {}
@@ -110,6 +111,34 @@ async def play(ctx: commands.Context, *, query: str):
     current_queue_length = len(sq.queue)
 
     song, is_playlist = await get_song(query, sq, ctx)
+
+    if song is False:
+        await ctx.send("There was an error trying to retrieve the song.")
+
+    if sq.channel != channel:
+        await channel.connect()
+        sq.channel = channel
+
+    if not is_playlist:
+        await ctx.send(f"Added `{song.title}` ({song.length_formatted})")
+    else:
+        await ctx.send(f"Added `{song}` songs.")
+
+    if not sq.is_playing:
+        sq.current_queue_number = current_queue_length
+        play_song(sq, channel)
+
+@is_in_our_vc()
+@ensure_queue()
+@client.command(name="music", aliases=["m"])
+async def music(ctx: commands.Context, *, query: str):
+    sq = server_queues[ctx.guild.id]
+    sq.active_text_channel = ctx.channel
+    channel = ctx.author.voice.channel
+
+    current_queue_length = len(sq.queue)
+
+    song, is_playlist = await get_song(query, sq, ctx, True)
 
     if song is False:
         await ctx.send("There was an error trying to retrieve the song.")
@@ -599,6 +628,9 @@ async def top(ctx: commands.Context, target: typing.Optional[discord.Member] = N
     if not sq.is_playing:
         sq.current_queue_number = current_queue_length
         play_song(sq, channel)
+
+@ensure_queue()
+
 
 if __name__ == "__main__":
     with open("secrets.json") as file:
