@@ -96,7 +96,7 @@ async def get_song(query: str, sq: ServerQueue, ctx: commands.Context, musicSett
         is_playlist = True
         playlist_id = query.split("/")[-1].split("?")[0]
 
-        songs = await get_songs_from_spotify_playlist(playlist_id, musicSetting)
+        songs = await get_songs_from_spotify_playlist(playlist_id)
         song_count = len(songs)
 
 
