@@ -19,7 +19,7 @@ import typing
 import spotipy
 import ytmusicapi
 
-client = commands.Bot(command_prefix="-", intents=discord.Intents.all())
+client = commands.Bot(command_prefix="-", intents=discord.Intents.messages)
 server_queues = {}
 FFMPEG_OPTIONS = {
     'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
