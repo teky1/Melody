@@ -19,7 +19,7 @@ import typing
 import spotipy
 import ytmusicapi
 
-client = commands.Bot(command_prefix="-")
+client = commands.Bot(command_prefix="-", intents=discord.Intents.default())
 server_queues = {}
 FFMPEG_OPTIONS = {
     'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
@@ -116,8 +116,12 @@ async def play(ctx: commands.Context, *, query: str):
         await ctx.send("There was an error trying to retrieve the song.")
 
     if sq.channel != channel:
+        print("here1")
         await channel.connect()
+        print("here2")
         sq.channel = channel
+
+
 
     if not is_playlist:
         await ctx.send(f"Added `{song.title}` ({song.length_formatted})")
