@@ -19,7 +19,13 @@ import typing
 import spotipy
 import ytmusicapi
 
-client = commands.Bot(command_prefix="-", intents=discord.Intents(messages=True))
+intents = discord.Intents.default()
+intents.guild_messages = True
+intents.messages = True
+intents.voice_states = True
+intents.typing = True
+
+client = commands.Bot(command_prefix="-", intents=intents)
 server_queues = {}
 FFMPEG_OPTIONS = {
     'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
