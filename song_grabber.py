@@ -1,6 +1,7 @@
 from ServerQueue import ServerQueue
 from Song import Song
 
+import discord
 import requests
 import re
 import json
@@ -10,6 +11,7 @@ from ytmusicapi import YTMusic
 from spotipy.oauth2 import SpotifyClientCredentials
 from discord.ext import commands
 
+
 with open("secrets.json") as secret_file:
     secrets = json.load(secret_file)
 
@@ -17,6 +19,38 @@ auth_manager = SpotifyClientCredentials(client_id=secrets["spotify_client_id"],
                                         client_secret=secrets["spotify_client_secret"])
 sp = spotipy.Spotify(auth_manager=auth_manager)
 ytmusic = YTMusic()
+
+
+class PlaylistSelect(discord.ui.Select):
+    def __init__(self, playlists, ctx, client):
+        self.playlists = playlists
+        self.ctx = ctx
+        self.client = client
+        options=[
+            discord.SelectOption(
+                label=playlist["name"],
+                value=playlist["external_urls"]["spotify"],
+                emoji="🎵",
+                description=playlist["description"][:100]
+            ) for playlist in playlists
+        ]
+        super().__init__(placeholder="Pick a playlist...",max_values=1,min_values=1,options=options)
+    async def callback(self, interaction: discord.Interaction):
+
+        if self.ctx.message.author.voice is None:
+            await interaction.response.send_message("You need to be in a VC to play a playlist")
+            return False
+        if self.ctx.voice_client is not None and self.ctx.message.author.voice.channel != self.ctx.voice_client.channel:
+            await interaction.response.send_message("You need to be in the bot's VC to play a playlist")
+            return False
+
+        await interaction.response.send_message(content=f"Queuing {self.values[0]}")
+        await self.ctx.invoke(self.client.get_command("music"), query=self.values[0])
+
+class PlaylistSelectView(discord.ui.View):
+    def __init__(self, playlists, ctx, client):
+        super().__init__(timeout=600)
+        self.add_item(PlaylistSelect(playlists, ctx, client))
 
 async def get_songs_from_spotify_playlist(playlist_id):
     pl = sp.playlist_items(playlist_id, market="US")

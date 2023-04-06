@@ -5,6 +5,7 @@ import threading
 
 import discord
 import random
+import pprint
 
 import requests
 from discord.ext import commands
@@ -12,7 +13,7 @@ from discord.ext.commands import BucketType
 from discord.utils import get
 from discord import FFmpegPCMAudio
 from ServerQueue import ServerQueue
-from song_grabber import get_song
+from song_grabber import get_song, PlaylistSelectView
 from Song import Song
 import database_manager as db
 import typing
@@ -123,9 +124,7 @@ async def play(ctx: commands.Context, *, query: str):
         await ctx.send("There was an error trying to retrieve the song.")
 
     if sq.channel != channel:
-        print("here1")
         await channel.connect()
-        print("here2")
         sq.channel = channel
 
 
@@ -639,6 +638,38 @@ async def top(ctx: commands.Context, target: typing.Optional[discord.Member] = N
     if not sq.is_playing:
         sq.current_queue_number = current_queue_length
         play_song(sq, channel)
+
+
+@ensure_queue()
+@commands.cooldown(rate=1, per=1, type=BucketType.member)
+@client.command(name="spotifyplaylists", aliases=["spplaylists", "spp"])
+async def spotifyplaylists(ctx: commands.Context, target: typing.Optional[discord.Member] = None, page: typing.Optional[int] = 1):
+
+    id = ctx.author.id if target is None else target.id
+    key = db.getSpotifyKey(id)
+
+    if key is None and target is None:
+        await ctx.send("You need to have Spotify linked to use this command. You can link your account"
+                       "by using the `-spotify` command.")
+        return
+    elif key is None and target is not None:
+        await ctx.send("This person does not have Spotify linked to their account. Tell them to link their Spotify "
+                       "by using the `-spotify` command.")
+        return
+
+    key = key[1]
+
+    sp = spotipy.Spotify(auth=key)
+
+    playlist_raw = sp.current_user_playlists(limit=25, offset = (page-1)*25)
+    playlists_data = playlist_raw["items"]
+
+    if len(playlists_data) < 1:
+        await ctx.send(f"No playlists found for this user.")
+        return
+
+    view = PlaylistSelectView(playlists_data, ctx, client)
+    await ctx.send(f"{sp.current_user()['display_name']}'s Playlists - Page {page} of {math.ceil(playlist_raw['total']/25)}", view=view)
 
 
 if __name__ == "__main__":
