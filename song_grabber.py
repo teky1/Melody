@@ -49,7 +49,7 @@ class PlaylistSelect(discord.ui.Select):
 
 class PlaylistSelectView(discord.ui.View):
     def __init__(self, playlists, ctx, client):
-        super().__init__(timeout=600)
+        super().__init__(timeout=None)
         self.add_item(PlaylistSelect(playlists, ctx, client))
 
 async def get_songs_from_spotify_playlist(playlist_id):
