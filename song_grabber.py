@@ -36,12 +36,15 @@ class PlaylistSelect(discord.ui.Select):
         ]
         super().__init__(placeholder="Pick a playlist...",max_values=1,min_values=1,options=options)
     async def callback(self, interaction: discord.Interaction):
-
-        if self.ctx.message.author.voice is None:
+        if interaction.user.voice is None:
             await interaction.response.send_message("You need to be in a VC to play a playlist")
             return False
-        if self.ctx.voice_client is not None and self.ctx.message.author.voice.channel != self.ctx.voice_client.channel:
+        if interaction.guild.voice_client is not None and interaction.user.voice.channel != interaction.guild.voice_client.channel:
             await interaction.response.send_message("You need to be in the bot's VC to play a playlist")
+            return False
+
+        if interaction.user != self.ctx.author:
+            await interaction.response.send_message("Only the person who ran the command can play the playlists. Please rerun the command yourself to choose a playlist.")
             return False
 
         await interaction.response.send_message(content=f"Queuing {self.values[0]}")

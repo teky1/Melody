@@ -665,7 +665,7 @@ async def spotifyplaylists(ctx: commands.Context, target: typing.Optional[discor
     playlists_data = playlist_raw["items"]
 
     if len(playlists_data) < 1:
-        await ctx.send(f"No playlists found for this user.")
+        await ctx.send(f"No playlists found for {sp.current_user()['display_name']}.")
         return
 
     view = PlaylistSelectView(playlists_data, ctx, client)
