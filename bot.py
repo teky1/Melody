@@ -24,6 +24,7 @@ intents.guild_messages = True
 intents.messages = True
 intents.voice_states = True
 intents.typing = True
+intents.message_content = True
 
 client = commands.Bot(command_prefix="-", intents=intents)
 server_queues = {}
