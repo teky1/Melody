@@ -1,5 +1,5 @@
 import asyncio
-import youtube_dl
+import yt_dlp as youtube_dl
 import requests
 import re
 from urllib.error import HTTPError
